@@ -2,11 +2,17 @@ import { useState } from "react";
 
 const PasswordModal = ({ isOpen, onSubmit, onCancel }) => {
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(password);
-    setPassword("");
+    setLoading(true);
+    try {
+      await onSubmit(password);
+      setPassword("");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -28,20 +34,23 @@ const PasswordModal = ({ isOpen, onSubmit, onCancel }) => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="password"
-            className="w-full px-3 py-2 mb-4 font-mono text-sm border border-[#ccc] rounded focus:outline-none focus:border-[#7b76c1]"
+            disabled={loading}
+            className="w-full px-3 py-2 mb-4 font-mono text-sm border border-[#ccc] rounded focus:outline-none focus:border-[#7b76c1] disabled:opacity-50"
             autoFocus
           />
           <div className="flex gap-2">
             <button
               type="submit"
-              className="flex-1 bg-[#7b76c1] text-white font-black py-2 rounded hover:bg-opacity-80 transition"
+              disabled={loading}
+              className="flex-1 bg-[#7b76c1] text-white font-black py-2 rounded hover:bg-opacity-80 transition disabled:opacity-50"
             >
-              unlock
+              {loading ? "checking..." : "unlock"}
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 border border-[#7b76c1] text-[#7b76c1] font-black py-2 rounded hover:bg-[#f5f5f5] transition"
+              disabled={loading}
+              className="flex-1 border border-[#7b76c1] text-[#7b76c1] font-black py-2 rounded hover:bg-[#f5f5f5] transition disabled:opacity-50"
             >
               cancel
             </button>

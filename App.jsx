@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useEditMode } from "./hooks/useEditMode";
+import { useState, useEffect } from "react";
+import { supabase } from "./services/supabaseClient";
+import { verifyPassword } from "./utils/passwordUtils";
 import { initialPortfolioData } from "./data/portfolioData";
 import MainContainer from "./components/MainContainer";
 import Navbar from "./components/Navbar";
@@ -10,18 +12,130 @@ import Home from "./pages/Home";
 import Work from "./pages/Work";
 
 function App() {
-  const {
-    isEditMode,
-    data,
-    pendingData,
-    passwordPromptOpen,
-    handleEditClick,
-    handlePasswordSubmit,
-    handleCancel,
-    handleSave,
-    updatePendingData,
-    setPasswordPromptOpen,
-  } = useEditMode(initialPortfolioData);
+  const [supabaseData, setSupabaseData] = useState(initialPortfolioData);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [editData, setEditData] = useState(supabaseData);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [pendingData, setPendingData] = useState(editData);
+  const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
+
+  useEffect(() => {
+    setEditData(supabaseData);
+  }, [supabaseData]);
+
+  useEffect(() => {
+    fetchDataFromSupabase();
+  }, []);
+
+  const fetchDataFromSupabase = async () => {
+    try {
+      setLoading(true);
+
+      const { data: result, error: err } = await supabase
+        .from("portfolio_data")
+        .select("*")
+        .eq("id", 1)
+        .single();
+
+      if (err) {
+        throw err;
+      }
+
+      if (!result) {
+        throw new Error("No data returned");
+      }
+
+      const transformedData = {
+        bio: result.bio,
+        experiences: result.experiences,
+        schoolLeadership: result.school_leadership,
+        projects: result.projects,
+      };
+
+      setSupabaseData(transformedData);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditClick = () => {
+    setPasswordPromptOpen(true);
+  };
+
+  const handlePasswordSubmit = async (password) => {
+    try {
+      const isCorrect = await verifyPassword(password);
+      if (isCorrect) {
+        setPendingData(editData);
+        setIsEditMode(true);
+        setPasswordPromptOpen(false);
+      } else {
+        alert("Incorrect password");
+      }
+    } catch (err) {
+      console.error("Error verifying password:", err);
+      alert("Error verifying password");
+    }
+  };
+
+  const handleCancel = () => {
+    setIsEditMode(false);
+    setPendingData(editData);
+  };
+
+  const handleSave = async () => {
+    try {
+      const { error: err } = await supabase
+        .from("portfolio_data")
+        .update({
+          bio: pendingData.bio,
+          experiences: pendingData.experiences,
+          school_leadership: pendingData.schoolLeadership,
+          projects: pendingData.projects,
+          updated_at: new Date(),
+        })
+        .eq("id", 1);
+
+      if (err) {
+        throw err;
+      }
+
+      setIsEditMode(false);
+      await fetchDataFromSupabase();
+    } catch (err) {
+      console.error("Error during save:", err);
+      alert("Failed to save: " + err.message);
+    }
+  };
+
+  const updatePendingData = (newData) => {
+    setPendingData(newData);
+  };
+
+  if (loading) {
+    return (
+      <MainContainer>
+        <div className="flex items-center justify-center h-screen">
+          <p className="font-mono text-[#7b76c1]">loading your portfolio...</p>
+        </div>
+      </MainContainer>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainContainer>
+        <div className="flex items-center justify-center h-screen">
+          <p className="font-mono text-red-500">Error: {error}</p>
+        </div>
+      </MainContainer>
+    );
+  }
 
   return (
     <BrowserRouter>
@@ -56,12 +170,21 @@ function App() {
             element={
               <Home
                 isEditMode={isEditMode}
-                data={isEditMode ? pendingData : data}
+                data={isEditMode ? pendingData : editData}
                 updateData={updatePendingData}
               />
             }
           />
-          <Route path="/work" element={<Work />} />
+          <Route
+            path="/work"
+            element={
+              <Work
+                isEditMode={isEditMode}
+                data={isEditMode ? pendingData : editData}
+                updateData={updatePendingData}
+              />
+            }
+          />
         </Routes>
         <Footer />
         <Copyright />
